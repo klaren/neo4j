@@ -24,6 +24,7 @@ import org.junit.Test;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.File;
+import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -325,11 +326,21 @@ public abstract class PageCacheTest<T extends PageCache> extends PageCacheTestSu
 
         AtomicInteger callbackCounter = new AtomicInteger();
         AtomicInteger ioCounter = new AtomicInteger();
-        cache.flushAndForce( ( previousStamp, recentlyCompletedIOs, swapper ) ->
+        cache.flushAndForce( new IOLimiter()
         {
-            ioCounter.addAndGet( recentlyCompletedIOs );
-            return callbackCounter.getAndIncrement();
-        });
+            @Override
+            public long maybeLimitIO( long previousStamp, int recentlyCompletedIOs, Flushable flushable )
+            {
+                ioCounter.addAndGet( recentlyCompletedIOs );
+                return callbackCounter.getAndIncrement();
+            }
+
+            @Override
+            public boolean isLimited()
+            {
+                return true;
+            }
+        } );
         pfA.close();
         pfB.close();
 
@@ -350,11 +361,21 @@ public abstract class PageCacheTest<T extends PageCache> extends PageCacheTestSu
 
         AtomicInteger callbackCounter = new AtomicInteger();
         AtomicInteger ioCounter = new AtomicInteger();
-        pf.flushAndForce( ( previousStamp, recentlyCompletedIOs, swapper ) ->
+        pf.flushAndForce( new IOLimiter()
         {
-            ioCounter.addAndGet( recentlyCompletedIOs );
-            return callbackCounter.getAndIncrement();
-        });
+            @Override
+            public long maybeLimitIO( long previousStamp, int recentlyCompletedIOs, Flushable flushable )
+            {
+                ioCounter.addAndGet( recentlyCompletedIOs );
+                return callbackCounter.getAndIncrement();
+            }
+
+            @Override
+            public boolean isLimited()
+            {
+                return false;
+            }
+        } );
         pf.close();
 
         assertThat( callbackCounter.get(), greaterThan( 0 ) );
